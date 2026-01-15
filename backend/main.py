@@ -345,3 +345,13 @@ def detect_risk(extracted: dict[str, tuple[str, int | None]], confidenza: float)
         return "Confidenza bassa"
 
     return ""
+
+
+if __name__ == "__main__":
+    try:
+        import uvicorn
+    except ImportError:
+        raise SystemExit(
+            "Uvicorn non installato. Installa con: pip install -r requirements.txt"
+        )
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
