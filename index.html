@@ -3,90 +3,43 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Gestionale Cooperativa – WebApp Telegram</title>
+    <title>Prospetti Ore & Costi - Multi Rete</title>
     <link rel="stylesheet" href="style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              display: ["Space Grotesk", "sans-serif"],
+              serif: ["Fraunces", "serif"],
+            },
+            colors: {
+              ink: "#111111",
+              sand: "#f1ece2",
+              clay: "#f7f3ec",
+              moss: "#6d7f5b",
+              ember: "#d65f3a",
+              ocean: "#2c5f70",
+            },
+          },
+        },
+      };
+    </script>
   </head>
-  <body>
-    <header class="page-header">
-      <div>
-        <p class="eyebrow">WebApp Telegram</p>
-        <h1>Gestionale Cooperativa – Demo</h1>
-        <p>Gestisci il personale direttamente da Telegram. Dati salvati in locale.</p>
-      </div>
-    </header>
+  <body class="font-display text-ink">
+    <div class="ambient-bg"></div>
+    <div id="root"></div>
 
-    <main class="page-content">
-      <section class="card">
-        <h2>Inserisci personale</h2>
-        <form id="person-form" autocomplete="off">
-          <label class="field">
-            <span>Nome</span>
-            <input type="text" id="name" name="name" placeholder="Es. Giulia Rossi" required />
-          </label>
-
-          <label class="field">
-            <span>Ruolo</span>
-            <select id="role" name="role" required>
-              <option value="" disabled selected>Seleziona ruolo</option>
-              <option value="Operatore">Operatore</option>
-              <option value="Coordinatore">Coordinatore</option>
-              <option value="Direttore">Direttore</option>
-            </select>
-          </label>
-
-          <label class="field">
-            <span>Ore settimanali</span>
-            <input
-              type="number"
-              id="hours"
-              name="hours"
-              min="1"
-              max="60"
-              placeholder="Es. 36"
-              required
-            />
-          </label>
-
-          <button type="submit" id="add-button">Aggiungi</button>
-        </form>
-      </section>
-
-      <section class="card">
-        <div class="table-header">
-          <div>
-            <h2>Personale inserito</h2>
-            <span id="total-count" class="badge">0 persone</span>
-          </div>
-          <button type="button" id="export-button" class="ghost-button">
-            Esporta Excel
-          </button>
-        </div>
-
-        <div class="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th>Ruolo</th>
-                <th>Ore settimanali</th>
-                <th>Azioni</th>
-              </tr>
-            </thead>
-            <tbody id="staff-table">
-              <tr class="empty-row">
-                <td colspan="4">Nessun personale inserito.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </main>
-
-    <footer class="page-footer">
-      <p>Demo frontend senza backend. Dati salvati in localStorage.</p>
-    </footer>
-
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="script.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script type="text/babel" src="script.js"></script>
   </body>
 </html>

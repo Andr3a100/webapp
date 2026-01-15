@@ -10,7 +10,14 @@ from telegram import (
   Update,
   WebAppInfo,
 )
-from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import (
+  Application,
+  CallbackQueryHandler,
+  CommandHandler,
+  ContextTypes,
+  MessageHandler,
+  filters,
+)
 
 def load_dotenv(path: str = ".env") -> None:
   env_path = Path(path)
@@ -58,14 +65,25 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
   )
 
 
+def extract_web_app_data(update: Update) -> str | None:
+  if update.message and update.message.web_app_data:
+    return update.message.web_app_data.data
+  if update.callback_query and update.callback_query.web_app_data:
+    return update.callback_query.web_app_data.data
+  return None
+
+
 async def handle_web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-  if not update.message or not update.message.web_app_data:
+  raw_data = extract_web_app_data(update)
+  if not raw_data:
     return
+  if update.callback_query:
+    await update.callback_query.answer()
 
   try:
-    payload = json.loads(update.message.web_app_data.data)
+    payload = json.loads(raw_data)
   except json.JSONDecodeError:
-    payload = {"raw": update.message.web_app_data.data}
+    payload = {"raw": raw_data}
 
   if payload.get("type") == "export":
     filename = payload.get("filename", "personale-cooperativa.csv")
@@ -76,11 +94,20 @@ async def handle_web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE
     from io import BytesIO
     file_bytes = BytesIO(csv_data.encode("utf-8"))
     file_bytes.name = filename
-    await update.message.reply_document(
-      document=file_bytes,
-      filename=filename,
-      caption="Export personale (CSV compatibile con Excel).",
-    )
+    file_bytes.seek(0)
+    if update.message:
+      await update.message.reply_document(
+        document=file_bytes,
+        filename=filename,
+        caption="Export personale (CSV compatibile con Excel).",
+      )
+    elif update.effective_chat:
+      await context.bot.send_document(
+        chat_id=update.effective_chat.id,
+        document=file_bytes,
+        filename=filename,
+        caption="Export personale (CSV compatibile con Excel).",
+      )
     return
 
   total = payload.get("total")
@@ -116,15 +143,29 @@ async def handle_web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     table_text = html.escape("\n".join(table_lines))
     message = "\n".join(lines) + "\n<pre>" + table_text + "</pre>"
-    await update.message.reply_text(message, parse_mode="HTML")
+    if update.message:
+      await update.message.reply_text(message, parse_mode="HTML")
+    elif update.effective_chat:
+      await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=message,
+        parse_mode="HTML",
+      )
   else:
-    await update.message.reply_text("\n".join(lines))
+    if update.message:
+      await update.message.reply_text("\n".join(lines))
+    elif update.effective_chat:
+      await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="\n".join(lines),
+      )
 
 
 def main() -> None:
   app = Application.builder().token(TOKEN).build()
   app.add_handler(CommandHandler("start", start))
-  app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_web_app_data))
+  app.add_handler(MessageHandler(filters.UpdateType.MESSAGE, handle_web_app_data))
+  app.add_handler(CallbackQueryHandler(handle_web_app_data))
   app.run_polling()
 
 
