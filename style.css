@@ -1,0 +1,206 @@
+:root {
+  color-scheme: light;
+  --bg: #f4f1ec;
+  --card: #ffffff;
+  --accent: #1f6f78;
+  --accent-dark: #185a61;
+  --text: #1d1f20;
+  --muted: #5c6668;
+  --border: #d8d2c8;
+  --shadow: 0 12px 28px rgba(31, 111, 120, 0.15);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Trebuchet MS", "Gill Sans", "Segoe UI", sans-serif;
+  background: radial-gradient(circle at top, #ffffff, var(--bg));
+  color: var(--text);
+  min-height: 100vh;
+}
+
+.page-header {
+  padding: 32px 20px 16px;
+  text-align: center;
+}
+
+.page-header h1 {
+  margin: 0 0 8px;
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  letter-spacing: 0.5px;
+}
+
+.page-header p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.page-content {
+  display: grid;
+  gap: 24px;
+  padding: 20px;
+  max-width: 1000px;
+  margin: 0 auto 32px;
+}
+
+.card {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.card h2 {
+  margin-top: 0;
+  font-size: 1.4rem;
+}
+
+#person-form {
+  display: grid;
+  gap: 16px;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.field input,
+.field select {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font-size: 1rem;
+}
+
+#add-button {
+  justify-self: start;
+  padding: 10px 18px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 999px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+#add-button:hover {
+  background: var(--accent-dark);
+}
+
+.table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.badge {
+  background: #e0f0f1;
+  color: var(--accent-dark);
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+}
+
+.table-wrapper {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 500px;
+}
+
+thead th {
+  text-align: left;
+  padding: 12px 8px;
+  border-bottom: 2px solid var(--border);
+  font-size: 0.95rem;
+}
+
+tbody td {
+  padding: 12px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.empty-row td {
+  text-align: center;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.delete-button {
+  background: #f8d7da;
+  color: #842029;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.delete-button:hover {
+  background: #f1b8bf;
+}
+
+.page-footer {
+  text-align: center;
+  padding: 12px 20px 28px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+@media (min-width: 900px) {
+  #person-form {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: end;
+  }
+
+  #add-button {
+    align-self: end;
+  }
+}
+
+@media (max-width: 640px) {
+  .card {
+    padding: 18px;
+  }
+
+  table {
+    min-width: 0;
+  }
+
+  thead {
+    display: none;
+  }
+
+  tbody tr {
+    display: grid;
+    gap: 8px;
+    padding: 12px 0;
+  }
+
+  tbody td {
+    border: none;
+    padding: 0;
+  }
+
+  tbody td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 2px;
+  }
+}

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gestionale Cooperativa – Demo</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="page-header">
+      <h1>Gestionale Cooperativa – Demo</h1>
+      <p>Gestisci il personale in modo semplice. Dati salvati solo in questo browser.</p>
+    </header>
+
+    <main class="page-content">
+      <section class="card">
+        <h2>Inserisci personale</h2>
+        <form id="person-form" autocomplete="off">
+          <label class="field">
+            <span>Nome</span>
+            <input type="text" id="name" name="name" placeholder="Es. Giulia Rossi" required />
+          </label>
+
+          <label class="field">
+            <span>Ruolo</span>
+            <select id="role" name="role" required>
+              <option value="" disabled selected>Seleziona ruolo</option>
+              <option value="Operatore">Operatore</option>
+              <option value="Coordinatore">Coordinatore</option>
+              <option value="Direttore">Direttore</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Ore settimanali</span>
+            <input
+              type="number"
+              id="hours"
+              name="hours"
+              min="1"
+              max="60"
+              placeholder="Es. 36"
+              required
+            />
+          </label>
+
+          <button type="submit" id="add-button">Aggiungi</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="table-header">
+          <h2>Personale inserito</h2>
+          <span id="total-count" class="badge">0 persone</span>
+        </div>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Ruolo</th>
+                <th>Ore settimanali</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody id="staff-table">
+              <tr class="empty-row">
+                <td colspan="4">Nessun personale inserito.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <footer class="page-footer">
+      <p>Demo frontend senza backend. Dati salvati in localStorage.</p>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>
