@@ -3,13 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Gestionale Cooperativa – Demo</title>
+    <title>Gestionale Cooperativa – WebApp Telegram</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <header class="page-header">
-      <h1>Gestionale Cooperativa – Demo</h1>
-      <p>Gestisci il personale in modo semplice. Dati salvati solo in questo browser.</p>
+      <div>
+        <p class="eyebrow">WebApp Telegram</p>
+        <h1>Gestionale Cooperativa – Demo</h1>
+        <p>Gestisci il personale direttamente da Telegram. Dati salvati in locale.</p>
+      </div>
     </header>
 
     <main class="page-content">
@@ -50,8 +53,13 @@
 
       <section class="card">
         <div class="table-header">
-          <h2>Personale inserito</h2>
-          <span id="total-count" class="badge">0 persone</span>
+          <div>
+            <h2>Personale inserito</h2>
+            <span id="total-count" class="badge">0 persone</span>
+          </div>
+          <button type="button" id="export-button" class="ghost-button">
+            Esporta Excel
+          </button>
         </div>
 
         <div class="table-wrapper">
@@ -78,6 +86,7 @@
       <p>Demo frontend senza backend. Dati salvati in localStorage.</p>
     </footer>
 
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="script.js"></script>
   </body>
 </html>
