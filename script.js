@@ -1,5 +1,7 @@
 const { useMemo, useState } = React;
 
+const API_BASE = window.location.port === "8080" ? "http://localhost:8000" : "";
+
 const ocrModes = [
   {
     id: "text",
@@ -253,6 +255,7 @@ const App = () => {
   });
   const [activeTab, setActiveTab] = useState("ruoli");
   const [activeStep, setActiveStep] = useState(0);
+  const [exportStatus, setExportStatus] = useState("");
 
   const riskRows = useMemo(
     () => extractedRows.map((row) => ({ id: row.id, risk: getRisk(row) })),
@@ -306,6 +309,50 @@ const App = () => {
       chunk: presetCas.roles[0].chunk,
       allowRemainder: presetCas.roles[0].allowRemainder,
     });
+  };
+
+  const handleExport = async () => {
+    setExportStatus("");
+    try {
+      const response = await fetch(`${API_BASE}/api/export`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rows: extractedRows.map((row) => ({
+            name: row.name,
+            role: row.role,
+            ore_ordinarie: row.oreOrdinarie,
+            ore_straordinarie: row.oreStraordinarie,
+            reperibilita: row.reperibilita,
+            netto: row.netto,
+          })),
+          networks: networks.map((network) => network.name).filter(Boolean),
+          cigs: cigs
+            .filter((cig) => cig.name)
+            .map((cig) => ({ name: cig.name, networks: cig.networks })),
+          excel_naming: excelNaming,
+        }),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        setExportStatus(text || "Errore export");
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "prospetti-ore-costi.xlsx";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setExportStatus("Export completato");
+    } catch (error) {
+      setExportStatus("Errore di rete durante export");
+    }
   };
 
   const riskCount = riskRows.filter((row) => row.risk).length;
@@ -888,9 +935,13 @@ const App = () => {
                   : "bg-ink text-white"
               }`}
               disabled={hasBlockingIssues}
+              onClick={handleExport}
             >
               Genera Excel
             </button>
+            {exportStatus && (
+              <p className="text-sm text-ink/70">{exportStatus}</p>
+            )}
           </div>
         </div>
       </SectionCard>
