@@ -3,7 +3,7 @@ const { useMemo, useState } = React;
 const API_BASE =
   window.location.protocol === "file:"
     ? "http://localhost:8000"
-    : window.location.port === "8080"
+    : window.location.port && window.location.port !== "8000"
     ? "http://localhost:8000"
     : "";
 
