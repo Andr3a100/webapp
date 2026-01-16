@@ -1,6 +1,11 @@
 const { useMemo, useState } = React;
 
-const API_BASE = window.location.port === "8080" ? "http://localhost:8000" : "";
+const API_BASE =
+  window.location.protocol === "file:"
+    ? "http://localhost:8000"
+    : window.location.port === "8080"
+    ? "http://localhost:8000"
+    : "";
 
 const ocrModes = [
   {
@@ -74,74 +79,9 @@ const presetCas = {
   },
 };
 
-const initialExtracted = [
-  {
-    id: crypto.randomUUID(),
-    name: "Giulia Rossi",
-    role: "Operatore",
-    oreOrdinarie: "152,0",
-    oreStraordinarie: "12,0",
-    reperibilita: "0",
-    netto: "1.345,70",
-    pagina: 1,
-    metodo: "pdfplumber",
-    confidenza: 0.92,
-  },
-  {
-    id: crypto.randomUUID(),
-    name: "Marco Bianchi",
-    role: "Coordinatore",
-    oreOrdinarie: "165,000",
-    oreStraordinarie: "0",
-    reperibilita: "8,0",
-    netto: "1.821,40",
-    pagina: 2,
-    metodo: "OCRmyPDF",
-    confidenza: 0.68,
-  },
-  {
-    id: crypto.randomUUID(),
-    name: "Sara Verdi",
-    role: "Operatore",
-    oreOrdinarie: "140,5",
-    oreStraordinarie: "4,0",
-    reperibilita: "0",
-    netto: "1.210,20",
-    pagina: 3,
-    metodo: "pdfplumber",
-    confidenza: 0.88,
-  },
-];
+const initialExtracted = [];
 
-const initialLog = [
-  {
-    id: crypto.randomUUID(),
-    page: 1,
-    value: "152,0",
-    field: "ore ordinarie",
-    rule: "regex oreOrdinarie",
-    method: "pdfplumber",
-    confidence: 0.92,
-  },
-  {
-    id: crypto.randomUUID(),
-    page: 2,
-    value: "165,000",
-    field: "ore ordinarie",
-    rule: "OCR + check decimali",
-    method: "OCRmyPDF",
-    confidence: 0.68,
-  },
-  {
-    id: crypto.randomUUID(),
-    page: 2,
-    value: "8,0",
-    field: "reperibilita",
-    rule: "regex reperibilita",
-    method: "OCRmyPDF",
-    confidence: 0.63,
-  },
-];
+const initialLog = [];
 
 const steps = [
   "Upload PDF",
@@ -185,6 +125,13 @@ const looksLikeHours = (value) => {
 };
 
 const getRisk = (row) => {
+  if (row.rischio) {
+    return row.rischio;
+  }
+  const required = [row.oreOrdinarie, row.oreStraordinarie, row.reperibilita, row.netto];
+  if (required.some((value) => String(value ?? "").trim() === "")) {
+    return "Dato mancante";
+  }
   const riskyFields = [row.oreOrdinarie, row.oreStraordinarie, row.reperibilita, row.netto];
   if (riskyFields.some((value) => hasAmbiguousNumber(value))) {
     return "Separatore ambiguo";
@@ -255,6 +202,9 @@ const App = () => {
   });
   const [activeTab, setActiveTab] = useState("ruoli");
   const [activeStep, setActiveStep] = useState(0);
+  const [warnings, setWarnings] = useState([]);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractStatus, setExtractStatus] = useState("");
   const [exportStatus, setExportStatus] = useState("");
 
   const riskRows = useMemo(
@@ -265,8 +215,18 @@ const App = () => {
   const hasBlockingIssues = useMemo(() => {
     const risk = riskRows.some((row) => row.risk);
     const missingConfig = roles.length === 0 || networks.length === 0 || cigs.length === 0;
-    return risk || missingConfig || !ocrMode;
-  }, [riskRows, roles, networks, cigs, ocrMode]);
+    return risk || missingConfig || !ocrMode || files.length === 0;
+  }, [riskRows, roles, networks, cigs, ocrMode, files]);
+
+  const missingItems = useMemo(() => {
+    const items = [];
+    if (!files.length) items.push("Carica almeno un PDF");
+    if (!ocrMode) items.push("Seleziona modalita OCR");
+    if (!roles.length) items.push("Definisci almeno un ruolo");
+    if (!networks.length) items.push("Definisci almeno una rete");
+    if (!cigs.length) items.push("Definisci almeno un CIG");
+    return items;
+  }, [files, ocrMode, roles, networks, cigs]);
 
   const handleFileUpload = (event) => {
     const uploaded = Array.from(event.target.files || []);
@@ -295,6 +255,57 @@ const App = () => {
     setCigs((prev) =>
       prev.map((cig) => (cig.id === id ? { ...cig, [field]: value } : cig))
     );
+  };
+
+  const handleExtract = async () => {
+    setExtractStatus("");
+    setWarnings([]);
+    if (!files.length || !ocrMode) {
+      setExtractStatus("Carica almeno un PDF e scegli la modalita OCR.");
+      return;
+    }
+    setIsExtracting(true);
+    try {
+      const formData = new FormData();
+      files.forEach((file) => formData.append("files", file));
+      formData.append("ocr_mode", ocrMode);
+      formData.append("parsing_config", JSON.stringify(parsingConfig));
+
+      const response = await fetch(`${API_BASE}/api/extract`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        setExtractStatus(text || "Errore estrazione");
+        return;
+      }
+
+      const data = await response.json();
+      const mappedRows = (data.extracted_rows || []).map((row) => ({
+        id: row.id,
+        name: row.name,
+        role: row.role,
+        oreOrdinarie: row.ore_ordinarie,
+        oreStraordinarie: row.ore_straordinarie,
+        reperibilita: row.reperibilita,
+        netto: row.netto,
+        pagina: row.pagina,
+        metodo: row.metodo,
+        confidenza: row.confidenza,
+        rischio: row.rischio || "",
+      }));
+      setExtractedRows(mappedRows);
+      setLogRows(data.log || []);
+      setWarnings(data.warnings || []);
+      setExtractStatus("Estrazione completata. Verifica e correggi i dati.");
+      setActiveStep(1);
+    } catch (error) {
+      setExtractStatus("Errore di rete durante estrazione.");
+    } finally {
+      setIsExtracting(false);
+    }
   };
 
   const applyPreset = () => {
@@ -397,9 +408,9 @@ const App = () => {
             <p className="font-semibold text-ink">{riskCount}</p>
           </div>
           <div className="p-4 rounded-2xl bg-white/70">
-            <p className="text-xs uppercase tracking-[0.2em] text-ink/60">Config mancante</p>
+            <p className="text-xs uppercase tracking-[0.2em] text-ink/60">Prerequisiti</p>
             <p className="font-semibold text-ink">
-              {roles.length && networks.length && cigs.length ? "Completa" : "Da completare"}
+              {missingItems.length === 0 ? "Completi" : "Da completare"}
             </p>
           </div>
         </div>
@@ -424,51 +435,79 @@ const App = () => {
         </div>
       </div>
 
-      <SectionCard title="1. Upload PDF" eyebrow="Wizard" index={1}>
-        <div className="grid md:grid-cols-[1.2fr_1fr] gap-6">
-          <div className="space-y-4">
-            <label className="block text-sm font-semibold">Buste paga (PDF)</label>
-            <input
-              type="file"
-              accept="application/pdf"
-              multiple
-              onChange={handleFileUpload}
-              className="w-full px-4 py-3 rounded-2xl bg-white/80 border border-ink/10"
-            />
-            <div className="text-sm text-ink/70">
-              {files.length
-                ? `${files.length} file caricati, pronti per parsing.`
-                : "Nessun file caricato. Supportate anche scansioni."}
+      {activeStep === 0 && (
+        <SectionCard title="1. Upload PDF" eyebrow="Wizard" index={1}>
+          <div className="grid md:grid-cols-[1.2fr_1fr] gap-6">
+            <div className="space-y-4">
+              <label className="block text-sm font-semibold">Buste paga (PDF)</label>
+              <input
+                type="file"
+                accept="application/pdf"
+                multiple
+                onChange={handleFileUpload}
+                className="w-full px-4 py-3 rounded-2xl bg-white/80 border border-ink/10"
+              />
+              <div className="text-sm text-ink/70">
+                {files.length
+                  ? `${files.length} file caricati, pronti per parsing.`
+                  : "Nessun file caricato. Supportate anche scansioni."}
+              </div>
             </div>
-          </div>
-          <div className="space-y-3">
-            <label className="block text-sm font-semibold">Modalita OCR</label>
-            <select
-              value={ocrMode}
-              onChange={(event) => setOcrMode(event.target.value)}
-              className="w-full px-4 py-3 rounded-2xl bg-white/80 border border-ink/10 ink-ring"
-            >
-              <option value="" disabled>
-                Seleziona modalita
-              </option>
-              {ocrModes.map((mode) => (
-                <option key={mode.id} value={mode.id}>
-                  {mode.label}
+            <div className="space-y-3">
+              <label className="block text-sm font-semibold">Modalita OCR</label>
+              <select
+                value={ocrMode}
+                onChange={(event) => setOcrMode(event.target.value)}
+                className="w-full px-4 py-3 rounded-2xl bg-white/80 border border-ink/10 ink-ring"
+              >
+                <option value="" disabled>
+                  Seleziona modalita
                 </option>
-              ))}
-            </select>
-            <div className="space-y-2 text-sm text-ink/70">
-              {ocrModes.map((mode) => (
-                <p key={mode.id}>
-                  <span className="font-semibold text-ink">{mode.label}:</span> {mode.helper}
-                </p>
-              ))}
+                {ocrModes.map((mode) => (
+                  <option key={mode.id} value={mode.id}>
+                    {mode.label}
+                  </option>
+                ))}
+              </select>
+              <div className="space-y-2 text-sm text-ink/70">
+                {ocrModes.map((mode) => (
+                  <p key={mode.id}>
+                    <span className="font-semibold text-ink">{mode.label}:</span> {mode.helper}
+                  </p>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-      </SectionCard>
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              className="px-5 py-2 rounded-full bg-ink text-white font-semibold disabled:opacity-60"
+              onClick={handleExtract}
+              disabled={isExtracting}
+            >
+              {isExtracting ? "Estrazione in corso..." : "Esegui estrazione"}
+            </button>
+            <button
+              type="button"
+              className="px-5 py-2 rounded-full bg-white/80 text-ink font-semibold"
+              onClick={() => setActiveStep(1)}
+            >
+              Vai ai dati estratti
+            </button>
+          </div>
+          {extractStatus && <p className="text-sm text-ink/70">{extractStatus}</p>}
+          {warnings.length > 0 && (
+            <div className="text-sm text-ember space-y-1">
+              {warnings.map((warning) => (
+                <p key={warning}>{warning}</p>
+              ))}
+            </div>
+          )}
+        </SectionCard>
+      )}
 
-      <SectionCard title="2. Dati estratti" eyebrow="Estrazione" index={2}>
+      {activeStep === 1 && (
+        <SectionCard title="2. Dati estratti" eyebrow="Estrazione" index={2}>
         <div className="grid lg:grid-cols-[2fr_1fr] gap-6">
           <div className="overflow-x-auto">
             <table className="min-w-[720px] w-full text-sm">
@@ -486,58 +525,74 @@ const App = () => {
                 </tr>
               </thead>
               <tbody>
-                {extractedRows.map((row) => {
-                  const risk = getRisk(row);
-                  return (
-                    <tr key={row.id} className="border-t border-ink/10">
-                      <td className="py-2">
-                        <input
-                          value={row.name}
-                          onChange={(event) => updateRow(row.id, "name", event.target.value)}
-                          className="w-full bg-transparent border-b border-ink/10 focus:border-ink/40"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          value={row.role}
-                          onChange={(event) => updateRow(row.id, "role", event.target.value)}
-                          className="w-full bg-transparent border-b border-ink/10 focus:border-ink/40"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          value={row.oreOrdinarie}
-                          onChange={(event) => updateRow(row.id, "oreOrdinarie", event.target.value)}
-                          className="w-full bg-transparent border-b border-ink/10 focus:border-ink/40"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          value={row.oreStraordinarie}
-                          onChange={(event) => updateRow(row.id, "oreStraordinarie", event.target.value)}
-                          className="w-full bg-transparent border-b border-ink/10 focus:border-ink/40"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          value={row.reperibilita}
-                          onChange={(event) => updateRow(row.id, "reperibilita", event.target.value)}
-                          className="w-full bg-transparent border-b border-ink/10 focus:border-ink/40"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          value={row.netto}
-                          onChange={(event) => updateRow(row.id, "netto", event.target.value)}
-                          className="w-full bg-transparent border-b border-ink/10 focus:border-ink/40"
-                        />
-                      </td>
-                      <td className="text-ink/70">{row.pagina}</td>
-                      <td>{formatConfidence(row.confidenza)}</td>
-                      <td>{risk ? <Badge tone="warn">{risk}</Badge> : <Badge tone="ok">OK</Badge>}</td>
-                    </tr>
-                  );
-                })}
+                {extractedRows.length === 0 ? (
+                  <tr className="border-t border-ink/10">
+                    <td colSpan={9} className="py-6 text-center text-sm text-ink/60">
+                      Nessun dato estratto. Esegui l'estrazione dal passo 1.
+                    </td>
+                  </tr>
+                ) : (
+                  extractedRows.map((row) => {
+                    const risk = getRisk(row);
+                    return (
+                      <tr key={row.id} className="border-t border-ink/10">
+                        <td className="py-2">
+                          <input
+                            value={row.name}
+                            onChange={(event) => updateRow(row.id, "name", event.target.value)}
+                            className="w-full bg-transparent border-b border-ink/10 focus:border-ink/40"
+                          />
+                        </td>
+                        <td>
+                          <input
+                            value={row.role}
+                            onChange={(event) => updateRow(row.id, "role", event.target.value)}
+                            className="w-full bg-transparent border-b border-ink/10 focus:border-ink/40"
+                          />
+                        </td>
+                        <td>
+                          <input
+                            value={row.oreOrdinarie}
+                            onChange={(event) =>
+                              updateRow(row.id, "oreOrdinarie", event.target.value)
+                            }
+                            className="w-full bg-transparent border-b border-ink/10 focus:border-ink/40"
+                          />
+                        </td>
+                        <td>
+                          <input
+                            value={row.oreStraordinarie}
+                            onChange={(event) =>
+                              updateRow(row.id, "oreStraordinarie", event.target.value)
+                            }
+                            className="w-full bg-transparent border-b border-ink/10 focus:border-ink/40"
+                          />
+                        </td>
+                        <td>
+                          <input
+                            value={row.reperibilita}
+                            onChange={(event) =>
+                              updateRow(row.id, "reperibilita", event.target.value)
+                            }
+                            className="w-full bg-transparent border-b border-ink/10 focus:border-ink/40"
+                          />
+                        </td>
+                        <td>
+                          <input
+                            value={row.netto}
+                            onChange={(event) => updateRow(row.id, "netto", event.target.value)}
+                            className="w-full bg-transparent border-b border-ink/10 focus:border-ink/40"
+                          />
+                        </td>
+                        <td className="text-ink/70">{row.pagina}</td>
+                        <td>{formatConfidence(row.confidenza)}</td>
+                        <td>
+                          {risk ? <Badge tone="warn">{risk}</Badge> : <Badge tone="ok">OK</Badge>}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -545,17 +600,23 @@ const App = () => {
             <div className="p-4 rounded-2xl bg-white/70">
               <h3 className="font-semibold text-ink">Log confidenza</h3>
               <ul className="mt-3 space-y-3 text-sm">
-                {logRows.map((entry) => (
-                  <li key={entry.id} className="border-l-2 border-ink/10 pl-3">
-                    <p className="font-semibold text-ink">
-                      Pagina {entry.page} · {entry.field}
-                    </p>
-                    <p className="text-ink/70">
-                      Valore: {entry.value} · Metodo: {entry.method} · {entry.rule}
-                    </p>
-                    <p className="text-ink/60 text-xs">Confidenza {formatConfidence(entry.confidence)}</p>
-                  </li>
-                ))}
+                {logRows.length === 0 ? (
+                  <li className="text-ink/60">Nessun log disponibile.</li>
+                ) : (
+                  logRows.map((entry) => (
+                    <li key={entry.id} className="border-l-2 border-ink/10 pl-3">
+                      <p className="font-semibold text-ink">
+                        Pagina {entry.page} · {entry.field}
+                      </p>
+                      <p className="text-ink/70">
+                        Valore: {entry.value} · Metodo: {entry.method} · {entry.rule}
+                      </p>
+                      <p className="text-ink/60 text-xs">
+                        Confidenza {formatConfidence(entry.confidence)}
+                      </p>
+                    </li>
+                  ))
+                )}
               </ul>
             </div>
             <div className="p-4 rounded-2xl bg-white/70">
@@ -568,8 +629,26 @@ const App = () => {
             </div>
           </div>
         </div>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button
+            type="button"
+            className="px-5 py-2 rounded-full bg-white/80 text-ink font-semibold"
+            onClick={() => setActiveStep(0)}
+          >
+            Indietro
+          </button>
+          <button
+            type="button"
+            className="px-5 py-2 rounded-full bg-ink text-white font-semibold"
+            onClick={() => setActiveStep(2)}
+          >
+            Avanti
+          </button>
+        </div>
       </SectionCard>
+      )}
 
+      {activeStep === 2 && (
       <SectionCard title="3. Config Editor" eyebrow="L'utente decide tutto" index={3}>
         <div className="flex flex-wrap gap-3">
           {[
@@ -808,34 +887,56 @@ const App = () => {
         )}
 
         {activeTab === "excel" && (
+          <div className="space-y-3">
+            <h3 className="font-semibold text-ink">Naming fogli Excel</h3>
+            <input
+              value={excelNaming.prefix}
+              onChange={(event) =>
+                setExcelNaming((prev) => ({ ...prev, prefix: event.target.value }))
+              }
+              placeholder="Prefisso fogli"
+              className="w-full px-4 py-2 rounded-xl border border-ink/10"
+            />
+            <input
+              value={excelNaming.suffix}
+              onChange={(event) =>
+                setExcelNaming((prev) => ({ ...prev, suffix: event.target.value }))
+              }
+              placeholder="Suffisso fogli"
+              className="w-full px-4 py-2 rounded-xl border border-ink/10"
+            />
+          </div>
+        )}
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button
+            type="button"
+            className="px-5 py-2 rounded-full bg-white/80 text-ink font-semibold"
+            onClick={() => setActiveStep(1)}
+          >
+            Indietro
+          </button>
+          <button
+            type="button"
+            className="px-5 py-2 rounded-full bg-ink text-white font-semibold"
+            onClick={() => setActiveStep(3)}
+          >
+            Avanti
+          </button>
+        </div>
+      </SectionCard>
+      )}
+
+      {activeStep === 3 && (
+        <SectionCard title="4. Allocazione" eyebrow="Regole operative" index={4}>
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-3">
-              <h3 className="font-semibold text-ink">Naming fogli Excel</h3>
-              <input
-                value={excelNaming.prefix}
-                onChange={(event) =>
-                  setExcelNaming((prev) => ({ ...prev, prefix: event.target.value }))
-                }
-                placeholder="Prefisso fogli"
-                className="w-full px-4 py-2 rounded-xl border border-ink/10"
-              />
-              <input
-                value={excelNaming.suffix}
-                onChange={(event) =>
-                  setExcelNaming((prev) => ({ ...prev, suffix: event.target.value }))
-                }
-                placeholder="Suffisso fogli"
-                className="w-full px-4 py-2 rounded-xl border border-ink/10"
-              />
-            </div>
-            <div className="space-y-3">
-              <h3 className="font-semibold text-ink">Allocazione globale</h3>
+              <h3 className="font-semibold text-ink">Step e arrotondamenti</h3>
               <input
                 value={allocation.step}
                 onChange={(event) =>
                   setAllocation((prev) => ({ ...prev, step: event.target.value }))
                 }
-                placeholder="Step minimo"
+                placeholder="Step minimo (es. 0,5)"
                 className="w-full px-4 py-2 rounded-xl border border-ink/10"
               />
               <input
@@ -846,6 +947,9 @@ const App = () => {
                 placeholder="Regola arrotondamento"
                 className="w-full px-4 py-2 rounded-xl border border-ink/10"
               />
+            </div>
+            <div className="space-y-3">
+              <h3 className="font-semibold text-ink">Chunk allocazione</h3>
               <input
                 value={allocation.chunk}
                 onChange={(event) =>
@@ -866,10 +970,27 @@ const App = () => {
               </label>
             </div>
           </div>
-        )}
-      </SectionCard>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <button
+              type="button"
+              className="px-5 py-2 rounded-full bg-white/80 text-ink font-semibold"
+              onClick={() => setActiveStep(2)}
+            >
+              Indietro
+            </button>
+            <button
+              type="button"
+              className="px-5 py-2 rounded-full bg-ink text-white font-semibold"
+              onClick={() => setActiveStep(4)}
+            >
+              Avanti
+            </button>
+          </div>
+        </SectionCard>
+      )}
 
-      <SectionCard title="4. Preview & controlli" eyebrow="Simulazione" index={4}>
+      {activeStep === 4 && (
+      <SectionCard title="5. Preview & controlli" eyebrow="Simulazione" index={5}>
         <div className="grid md:grid-cols-3 gap-4">
           <div className="p-4 rounded-2xl bg-white/70 space-y-2">
             <p className="text-xs uppercase tracking-[0.2em] text-ink/60">Controlli blocco</p>
@@ -893,6 +1014,16 @@ const App = () => {
             <p className="text-sm text-ink/70">Consolidati per commessa multi-rete.</p>
           </div>
         </div>
+        {missingItems.length > 0 && (
+          <div className="mt-6 p-4 rounded-2xl bg-white/70">
+            <h3 className="font-semibold text-ink">Cosa manca</h3>
+            <ul className="mt-2 text-sm text-ember space-y-1">
+              {missingItems.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="mt-6 p-4 rounded-2xl bg-white/70">
           <h3 className="font-semibold text-ink">Audit consuntivo</h3>
           <p className="text-sm text-ink/70 mt-2">
@@ -900,9 +1031,27 @@ const App = () => {
             manuali. Il log completo resta consultabile per revisione.
           </p>
         </div>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button
+            type="button"
+            className="px-5 py-2 rounded-full bg-white/80 text-ink font-semibold"
+            onClick={() => setActiveStep(3)}
+          >
+            Indietro
+          </button>
+          <button
+            type="button"
+            className="px-5 py-2 rounded-full bg-ink text-white font-semibold"
+            onClick={() => setActiveStep(5)}
+          >
+            Avanti
+          </button>
+        </div>
       </SectionCard>
+      )}
 
-      <SectionCard title="5. Export" eyebrow="Output dinamico" index={5}>
+      {activeStep === 5 && (
+      <SectionCard title="6. Export" eyebrow="Output dinamico" index={6}>
         <div className="grid md:grid-cols-2 gap-6">
           <div className="space-y-3">
             <h3 className="font-semibold text-ink">Template Excel dinamico</h3>
@@ -944,7 +1093,17 @@ const App = () => {
             )}
           </div>
         </div>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button
+            type="button"
+            className="px-5 py-2 rounded-full bg-white/80 text-ink font-semibold"
+            onClick={() => setActiveStep(4)}
+          >
+            Indietro
+          </button>
+        </div>
       </SectionCard>
+      )}
     </div>
   );
 };
